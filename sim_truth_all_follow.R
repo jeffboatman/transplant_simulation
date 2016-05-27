@@ -24,7 +24,7 @@ mlast <- function(x) {
 }
 
 last <- function(x) { 
-  return( x[length(x)] ) 
+  return(x[length(x)]) 
 }
 
 offered_func <- function(x) {
