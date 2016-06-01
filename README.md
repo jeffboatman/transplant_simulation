@@ -10,4 +10,4 @@ all patients are following the treatment regime.
 sim_one_follows.R is used to estimate the true survival distribution assuming
 no other patients are following the treatment regime.
 
-Last updated May 27 2016.
+Last updated June 1 2016.
