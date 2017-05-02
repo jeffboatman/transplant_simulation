@@ -1,12 +1,33 @@
 # ------------------------------------------------------------
 # simulation code for estimating true survival distribution
 # if one patient follows regime.
-# R version 3.2.0
+# R version 3.1.3
 # ------------------------------------------------------------
 
+# Simulation parameters ---------------------------------------------------
+n.mc <- 1e4             # number of Monte Carlo Iterations
+n.boot <- 1000           # number of bootstrap iterations
+n.cores <- 4            # number of cores to use for parallel processing
+# -------------------------------------------------------------------------
 
+options(digits = 3)
+library(parallel)
 library(survival)
 library(dplyr)
+
+
+# designed to run on 5 servers
+host <- system2("hostname", stdout = TRUE)
+hosts <- paste0(c("carbon", "cesium", "chromium", 
+  "potassium", "silicon"), 
+  ".ccbr.umn.edu")
+n.s <- length(hosts)
+j <- match(host, hosts)
+
+
+
+# source("parameters.R")
+
 
 expit <- function(x) {
   expit <- exp(x)/(1+exp(x))
@@ -24,7 +45,7 @@ mlast <- function(x) {
 }
 
 last <- function(x) { 
-  return( x[length(x)] ) 
+  return(x[length(x)]) 
 }
 
 offered_func <- function(x) {
@@ -36,7 +57,7 @@ sim <- function(sim_num, days_in_study) {
 	
 	n <- 20000 # base number of patient and organ arrivals
 	tau <- 730 # length of follow-up after listing
-	knot_pts <- c(0,180,365,540,730)
+	knot_pts <- c(0, 180, 365, 540, 730)
 	burn_in <- 10000 # length of burn-in period
 	max_cal_time <- burn_in + days_in_study
 	
@@ -52,7 +73,8 @@ sim <- function(sim_num, days_in_study) {
 	
 	# Generate organ arrival process. Organs continue to arrive until the last 
     # patient arrives on WL 
-	o_arv_times <- round(cumsum(rexp(n, 0.35)))
+	# o_arv_times <- round(cumsum(rexp(n, 0.35)))
+	o_arv_times <- round(cumsum(rexp(n, 0.32)))
 	o_arv_times <- o_arv_times[o_arv_times < max_cal_time]
 	n_o <- length(o_arv_times)
 	o_blood_type <- sample(b_types, n_o, replace = T, prob = b_probs)
@@ -284,32 +306,90 @@ sim <- function(sim_num, days_in_study) {
 	  o_arv_times, 
 	  good_organ) 
 	
-	data_set_final <- left_join(data_set, pt_data_set, by = "id")
+	# data_set_final <- left_join(data_set, pt_data_set, by = "id")
+    data_set_final <- left_join(pt_data_set, data_set, by = "id")
 	data_set_final <- left_join(data_set_final, org_data_set, by = "organ_num")	
     data_set_final <- as.data.frame(data_set_final)
+    data_set_final <- data_set_final[with(data_set_final, order(id, o_arv_times)), ]
 	
     lucky_data <- subset(data_set_final, id == lucky_id, 
       select = c(id, p_arv_times, ev_pt_time, ev_ind, ever_tx_ed, tx_ed, good_organ))
+    # lucky_data <- data.frame(sim.num = sim_num, lucky_data)
+    
     lucky_data <- lucky_data[nrow(lucky_data), ]
+    lucky_data <- data.frame(sim.num = sim_num, lucky_data)
     out <- lucky_data
-	write.table(out, outfile, quote = FALSE, row.names = FALSE,
-	    col.names = FALSE, append = TRUE)
-
+    write.table(out, outfile, quote = FALSE, row.names = FALSE,
+      col.names = FALSE, append = TRUE)
 }
 
-outfile <- paste0("./outfiles/sim_truth_one_follows_out.txt")
-cols <- c("id", "p_arv_times", "ev_pt_time", "ev_ind", "ever_tx_ed", "tx_ed", "good_organ")
-arraynum <- as.numeric(Sys.getenv("PBS_ARRAYID"))
-if(arraynum == 1) {
-    write.table(t(cols), outfile, row.names = FALSE, col.names = FALSE,
-      append = FALSE, quote = FALSE)
-}
+outfile <- paste0("./outfiles/sim_truth_one_follows_out_", j, ".txt")
+cols <- c("sim.num", "id", "p_arv_times", "ev_pt_time", "ev_ind", "ever_tx_ed", 
+  "tx_ed", "good_organ")
 
-numsims <- 1e4
-sims <- ((arraynum * numsims / 25) - (numsims / 25 - 1)):(arraynum * 
-  numsims / 25)
-f <- failwith(NA, sim)
-for(i in sims) {
-  out <- f(i, days_in_study = 20 * 365)
-  message(i)
-}
+# # for cluster
+# arraynum <- as.numeric(Sys.getenv("PBS_ARRAYID"))
+# if(arraynum == 1) {
+    # write.table(t(cols), outfile, row.names = FALSE, col.names = FALSE,
+      # append = FALSE, quote = FALSE)
+# }	
+# sims <- ((arraynum * n.mc / 25) - (n.mc / 25 - 1)):(arraynum * 
+  # n.mc / 25)
+# # f <- failwith(NA, sim)
+# # for(i in sims) {
+  # # out <- f(i, days_in_study = 20 * 365)
+  # # message(i)
+# # }
+# out <- t(sapply(sims, failwith(NULL, sim), days_in_study = 20 * 365))
+# write.table(out, 
+  # outfile, 
+  # quote = FALSE, 
+  # row.names = FALSE,
+  # col.names = FALSE, 
+  # append = TRUE)
+
+
+# # for server
+# # library(parallel)
+# # host <- system2("hostname", stdout = TRUE)
+# # hosts <- paste0(c("carbon", "cesium", "chromium", 
+  # # "potassium", "silicon"), 
+  # # ".ccbr.umn.edu")
+# # n.s <- length(hosts)
+# # j <- match(host, hosts)
+
+# # if(j == 1) {
+  # # write.table(t(cols), 
+  # # outfile, 
+  # # row.names = FALSE, 
+  # # col.names = FALSE,
+  # # append = FALSE, quote = FALSE)
+# # }
+
+# # sims <- ((j * n.mc / n.s) - (n.mc / n.s - 1)):(j * n.mc / n.s)
+
+# # # out <- t(sapply(1:4, failwith(NULL, sim), days_in_study = 20 * 365))
+# # out.list <- mclapply(sims, 
+  # # failwith(NULL, sim), 
+  # # mc.cores = n.cores,
+  # # days_in_study = 20 * 365)
+# # out <- do.call(rbind, out.list)
+# # write.table(out, 
+  # # outfile, 
+  # # quote = FALSE, 
+  # # row.names = FALSE,
+  # # col.names = FALSE, 
+  # # append = TRUE)
+
+write.table(t(cols), 
+  file = outfile, 
+  row.names = FALSE,   
+  col.names = FALSE,
+  append = FALSE, 
+  quote = FALSE)
+
+sims <- ((j * n.mc / n.s) - (n.mc / n.s - 1)):(j * n.mc / n.s)
+out.list <- mclapply(sims,
+  sim,
+  mc.cores = n.cores,
+  days_in_study = 20* 365)
