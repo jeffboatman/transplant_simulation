@@ -4,9 +4,29 @@
 # R version 3.2.0
 # ------------------------------------------------------------
 
+# Simulation parameters ---------------------------------------------------
+n.mc <- 1000             # number of Monte Carlo Iterations
+# n.boot <- 1000           # number of bootstrap iterations
+n.cores <- 4            # number of cores to use for parallel processing
+# -------------------------------------------------------------------------
+
+options(digits = 3)
+library(parallel)
+
+# designed to run on 5 servers
+host <- system2("hostname", stdout = TRUE)
+hosts <- paste0(c("carbon", "cesium", "chromium", 
+  "potassium", "silicon"), 
+  ".ccbr.umn.edu")
+n.s <- length(hosts)
+j <- match(host, hosts)
+
+
 library(survival)
 library(dplyr)
 print.tbl_df <- print.data.frame
+
+# source("parameters.R")
 
 expit <- function(x) {
   expit <- exp(x)/(1+exp(x))
@@ -32,11 +52,14 @@ offered_func <- function(x) {
   offered_func <- mlast(offered_func)
 }
 
+# sim_num <- 1
+# days_in_study <- 20 * 365
+
 sim <- function(sim_num, days_in_study) {
 	start.overall <- proc.time()
 	n <- 20000 # base number of patient and organ arrivals
 	tau <- 730 # length of follow-up after listing
-	knot_pts <- c(0,180,365,540,730)
+	knot_pts <- c(0, 180, 365, 540, 730)
 	burn_in <- 10000 # length of burn-in period
 	max_cal_time <- burn_in + days_in_study
 	
@@ -51,7 +74,8 @@ sim <- function(sim_num, days_in_study) {
 	
 	# Generate organ arrival process. Organs continue to arrive until 
     # the last patient arrives on WL 
-	o_arv_times <- round(cumsum(rexp(n, 0.35)))
+	# o_arv_times <- round(cumsum(rexp(n, 0.35)))
+	o_arv_times <- round(cumsum(rexp(n, 0.32)))
 	o_arv_times <- o_arv_times[o_arv_times < max_cal_time]
 	n_o <- length(o_arv_times)
 	o_blood_type <- sample(b_types, n_o, replace = T, prob = b_probs)
@@ -369,21 +393,41 @@ sim <- function(sim_num, days_in_study) {
 # The simulation is designed to run on a cluster with pbs array id 1-25.
 # completes 1000 Monte Carlo Iterations. 
 
-outfile <- paste0("./outfiles/sim_truth_all_follow_out.txt")
-cols <- c("days_in_study", "sim_num", paste0("surv", 1:4 * 180))
-arraynum <- as.numeric(Sys.getenv("PBS_ARRAYID"))
-if(arraynum == 1) {
-    write.table(t(cols), outfile, row.names = FALSE, col.names = FALSE,
-      append = FALSE, quote = FALSE)
-}
+# outfile <- paste0("../outfiles/sim_truth_all_follow_out.txt")
+# cols <- c("days_in_study", "sim_num", paste0("surv", 1:4 * 180))
+# arraynum <- as.numeric(Sys.getenv("PBS_ARRAYID"))
+# if(arraynum == 1) {
+    # write.table(t(cols), outfile, row.names = FALSE, col.names = FALSE,
+      # append = FALSE, quote = FALSE)
+# }
 
-numsims <- 1e3
-sims <- ((arraynum * numsims / 25) - (numsims / 25 - 1)):(arraynum * 
-  numsims / 25)
-f <- failwith(NA, sim)
-for(i in sims) {
-  out <- f(i, days_in_study = 20 * 365)
-  message(i)
-}
+# numsims <- 1e3
+# sims <- ((arraynum * numsims / 25) - (numsims / 25 - 1)):(arraynum * 
+  # numsims / 25)
+# f <- failwith(NULL, sim)
+# for(i in sims) {
+  # out <- f(i, days_in_study = 20 * 365)
+  # message(i)
+# }
 
 # To get estimated true survival, read in the outfile and use colMeans.
+
+
+cols <- c("days_in_study", "sim_num", paste0("surv", 1:4 * 180))
+# create output data files
+outfile <- paste0("outfiles/sim_truth_all_follow_out_", j, ".txt")
+write.table(t(cols), 
+  file = outfile, 
+  row.names = FALSE,   
+  col.names = FALSE,
+  append = FALSE, 
+  quote = FALSE)
+
+
+# run simulation in parallel
+sims <- ((j * n.mc / n.s) - (n.mc / n.s - 1)):(j * n.mc / n.s)
+out.list <- mclapply(sims,
+  failwith(NA, sim),
+  mc.cores = n.cores,
+  days_in_study = 20 * 365)
+
