@@ -6,7 +6,6 @@
 
 # Simulation parameters ---------------------------------------------------
 n.mc <- 1e4             # number of Monte Carlo Iterations
-n.boot <- 1000           # number of bootstrap iterations
 n.cores <- 4            # number of cores to use for parallel processing
 # -------------------------------------------------------------------------
 
@@ -327,59 +326,7 @@ outfile <- paste0("./outfiles/sim_truth_one_follows_out_", j, ".txt")
 cols <- c("sim.num", "id", "p_arv_times", "ev_pt_time", "ev_ind", "ever_tx_ed", 
   "tx_ed", "good_organ")
 
-# # for cluster
-# arraynum <- as.numeric(Sys.getenv("PBS_ARRAYID"))
-# if(arraynum == 1) {
-    # write.table(t(cols), outfile, row.names = FALSE, col.names = FALSE,
-      # append = FALSE, quote = FALSE)
-# }	
-# sims <- ((arraynum * n.mc / 25) - (n.mc / 25 - 1)):(arraynum * 
-  # n.mc / 25)
-# # f <- failwith(NA, sim)
-# # for(i in sims) {
-  # # out <- f(i, days_in_study = 20 * 365)
-  # # message(i)
-# # }
-# out <- t(sapply(sims, failwith(NULL, sim), days_in_study = 20 * 365))
-# write.table(out, 
-  # outfile, 
-  # quote = FALSE, 
-  # row.names = FALSE,
-  # col.names = FALSE, 
-  # append = TRUE)
 
-
-# # for server
-# # library(parallel)
-# # host <- system2("hostname", stdout = TRUE)
-# # hosts <- paste0(c("carbon", "cesium", "chromium", 
-  # # "potassium", "silicon"), 
-  # # ".ccbr.umn.edu")
-# # n.s <- length(hosts)
-# # j <- match(host, hosts)
-
-# # if(j == 1) {
-  # # write.table(t(cols), 
-  # # outfile, 
-  # # row.names = FALSE, 
-  # # col.names = FALSE,
-  # # append = FALSE, quote = FALSE)
-# # }
-
-# # sims <- ((j * n.mc / n.s) - (n.mc / n.s - 1)):(j * n.mc / n.s)
-
-# # # out <- t(sapply(1:4, failwith(NULL, sim), days_in_study = 20 * 365))
-# # out.list <- mclapply(sims, 
-  # # failwith(NULL, sim), 
-  # # mc.cores = n.cores,
-  # # days_in_study = 20 * 365)
-# # out <- do.call(rbind, out.list)
-# # write.table(out, 
-  # # outfile, 
-  # # quote = FALSE, 
-  # # row.names = FALSE,
-  # # col.names = FALSE, 
-  # # append = TRUE)
 
 write.table(t(cols), 
   file = outfile, 
