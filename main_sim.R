@@ -1,7 +1,5 @@
-# source("parameters.R")
 # Simulation parameters ---------------------------------------------------
 n.mc <- 1000             # number of Monte Carlo Iterations
-# n.boot <- 100           # number of bootstrap iterations
 n.cores <- 4            # number of cores to use for parallel processing
 # -------------------------------------------------------------------------
 
@@ -67,18 +65,8 @@ first.tx.fun <- function(x) {
 }
 
 
-# sim_num <- 1
-# days_in_study <- 10 * 365
-# n.boot <- 100
-# include.se <- TRUE
-
 sim <- function(sim_num, days_in_study, n.boot = 100, include.se = FALSE) {
 	### define parameters for simulation --------------------------------------------------------------
-	
-	# length of time and follow-up
-	# sim_num <- 1
-	# days_in_study <- 10 * 365
-    # n.boot <- 25
 	n <- 20000 # base number of patient and organ arrivals
 	tau <- 730 # length of follow-up after listing
 	knot_pts <- c(0,180,365,540,730)
@@ -321,17 +309,12 @@ sim <- function(sim_num, days_in_study, n.boot = 100, include.se = FALSE) {
 	
 	# Get estimated probability of accepting organ, being offered organ, receiving tx,
 	# and receiving particular treatment of each subject
-	# DMV: already  value in dataset that is prob_accept, change this to prob_accept_est
 	data_set_final$prob_accept_est <- as.numeric(expit(cbind(1, data_set_final$cov_value) %*% 
 	    logit_param))
 	data_set_final <- data_set_final[order(data_set_final$organ_num, -data_set_final$exact_blood,
 	  -data_set_final$cov_value),]
 	data_set_final$prob_offered_est <- unlist(by(1-data_set_final$prob_accept_est, 
 	  data_set_final$organ_num, offered_func, simplify = TRUE))
-	# data_set_final <- mutate(data_set_final, 
-	  # prob_tx_est = prob_accept*prob_offered,
-	  # prob_tx_received_est = tx_ed*prob_tx_est + (1 - tx_ed)*(1 - prob_tx_est))
-    # changed 03/01/2016
 	data_set_final <- mutate(data_set_final, 
 	  prob_tx_est = prob_accept_est*prob_offered_est,
 	  prob_tx_received_est = tx_ed*prob_tx_est + (1 - tx_ed)*(1 - prob_tx_est))
@@ -414,10 +397,6 @@ sim <- function(sim_num, days_in_study, n.boot = 100, include.se = FALSE) {
 	
 	# add 1 to months because you could overlap 2 months
 	months_in_study <- ceiling((days_in_study+1)/30)+1
-	# months_start_study is the study month on day burn_in
-	# burn_in - pt_obs$p_arv_times gives number of days before burn-in
-	# burn_in day is day 1
-	# take floor so that we start with month 0
 	months_start_study <- floor((burn_in - pt_obs$p_arv_times + 1)/30)
 	months_subject <- unlist(sapply(months_start_study, 
 	  function(x) {(x:(x + months_in_study - 1))*30}))
@@ -465,14 +444,8 @@ sim <- function(sim_num, days_in_study, n.boot = 100, include.se = FALSE) {
 	  for (q in 1:100) {
 	    if (impute.need==T) {
 	      # minimum time with NAs
-	      # min.time <- which(is.na(pt_cov_by_day_impute[i,]) == T & 
-	          # 1:(days_in_study + 1) >= first.time)[1]
      	  min.time <- which(is.na(pt_cov_by_day_impute[i,]) == T & 
 	          1:(days_in_study + 1) > first.time)[1]
-	      # min.time + burn_in - 1 = calendar day of first missing value
-	      # min.time + burn_in - 1 - pt_obs$p_arv_times[i] = number of days between arrival and 
-	      #     day for first missing value
-	      # min.time + burn_in - 1 - pt_obs$p_arv_times[i] + 1 = patient day of first missingness
 	      study.day <- min.time + burn_in - 1 - pt_obs$p_arv_times[i] + 1
 	      # column in dataset corresponding to pt day = study.day
 	      # pt_obs$p_arv_times + study.day - 1 = calendar day corresponding to study.day in study 
@@ -502,7 +475,6 @@ sim <- function(sim_num, days_in_study, n.boot = 100, include.se = FALSE) {
 	proc.time() - start
 	
 	# Simulate organ allocation if everyone followed regime of interest -------------------------------
-	# set.seed(sim_num + 6171988)
 	tx_ed_s1 <- rep(0, n.subj)
 	o_use <- which(o_arv_times >= burn_in & good_organ == 1)
 	accept.obs <- accept.matrix[which(pt_data_set$id %in% unique_ids), ]
@@ -610,7 +582,6 @@ sim <- function(sim_num, days_in_study, n.boot = 100, include.se = FALSE) {
 	pt_obs_long <- mapply(tolong, pt_obs_1$id, pt_obs_1$first_organ, pt_obs_1$last_organ)
 	pt_obs_long <- data.frame(do.call(rbind, pt_obs_long))
 	names(pt_obs_long) <- c("id", "organ_num")
-	# pt_obs_long <- subset(pt_obs_long, organ_num %in% data_set_sim$organ_num)
 	pt_obs_long <- merge(pt_obs_long, pt_obs_1, by = "id")
 	pt_obs_long$o_arv_times <- o_arv_times[pt_obs_long$organ_num] 
 	covlookup <- cbind(match(pt_obs_long$id, pt_obs_1$id), 
@@ -666,19 +637,6 @@ sim <- function(sim_num, days_in_study, n.boot = 100, include.se = FALSE) {
 	# Here the weights are based on probability of following treatement trajectory if everyone followed
 	# regime of interest ------------------------------------------------------------------------------
 	
-	# deal with multiple transplants per day, get one row per day
-	# keep <- rep(TRUE, nrow(dsw))
-	# for(j in 2:nrow(dsw))
-	# {
-	  # if(dsw$id[j] == dsw$id[j-1] & 
-	      # dsw$cal_time[j] == dsw$cal_time[j - 1]) {
-	    # keep[j - 1] <- FALSE
-	    # dsw$prob_tx_received_est[j] <- dsw$prob_tx_received_est[j-1] *
-	      # dsw$prob_tx_received_est[j]
-	  # }
-	# }
-	# dsw <- dsw[keep,]
-
     dsw <- dsw[with(dsw, order(id, cal_time, -organ_num)), ]
     dsw <- group_by(dsw, id, cal_time)
     dsw <- mutate(dsw, 
@@ -712,11 +670,6 @@ sim <- function(sim_num, days_in_study, n.boot = 100, include.se = FALSE) {
 	  weight = total_weight)
 	t1main <- summary(surv1, times = c(180, 360, 540, 720))
 
-	# surv2 <- survfit(Surv(start, stop, event_window) ~ 1, 
-      # data = data_set_final_1, 
-	  # weight = ipw)
-	# t2main <- summary(surv2, times = c(180, 360, 540, 720))
-
 	surv3 <- survfit(Surv(start, stop, event_window) ~ 1, 
       data = data_set_final_1, 
 	  weights = ipw2)
@@ -727,53 +680,8 @@ sim <- function(sim_num, days_in_study, n.boot = 100, include.se = FALSE) {
 	  weights = compliant)
 	t4main <- summary(surv4, times = c(180, 360, 540, 720))
 
-    # # try sandwich covariance estimator assuming
-    # # the weights are known.
-    # surv.model <- summary(surv3)
-    # n.final <- length(unique(data_set_final_1$id))
-    # mean.weight <- surv.model$n.risk / n.final
-    # A <- diag(mean.weight)
-    # times <- surv.model$time
-    # haz <- surv.model$n.event / surv.model$n.risk
-
-    # ee <- function(df.row) {
-      # start <- as.numeric(df.row['start'])
-      # stop <- as.numeric(df.row['stop'])
-      # event_window <- as.numeric(df.row['event_window'])
-      # ipw2 <- as.numeric(df.row['ipw2'])
-      # ee.one.time <- function(time) {
-        # at.risk <- as.numeric(start < time & round(time, 7) <= round(stop, 7))
-        # delta <- as.numeric(event_window == 1 & round(stop, 7) == round(time, 7))
-        # ipw2 * (delta -  at.risk * haz[match(time, times)])
-      # }
-      # sapply(times, ee.one.time)
-    # }
-
-    # ee.eval <- t(apply(data_set_final_1, 1, ee))
-
-
-    # ee.by.id <- split(data.frame(ee.eval), data_set_final_1$id)
-    # ee.by.id <- lapply(ee.by.id, as.matrix)
-    # ee.by.id <- lapply(ee.by.id, colSums)
-    # outer.by.id <- Map(outer, ee.by.id, ee.by.id)
-    # B <- 1 / n.final * Reduce('+', outer.by.id)
-
-    # A.inv <- solve(A)
-    # haz.var <- A.inv %*% B %*% t(A.inv)
-
-    # haz2surv <- function(haz) cumprod(1 - haz)
-	# j <- numDeriv::jacobian(haz2surv, haz)
-    # surv.var <- j %*% haz.var %*% t(j)
-    
     ### begin bootstrap ----------------------------------
 	# boots <- matrix(0, nrow = n.boot, ncol = 12)
-
-#     data_set_final_1 <- data_set_final_1[order(data_set_final_1$id), ]
-#     unique.ids <- unique(data_set_final_1$id)
-#     rows.per.id <- table(data_set_final_1$id)
-#     min.id.match <- match(unique.ids, data_set_final_1$id)
-#     max.id.match <- min.id.match + rows.per.id - 1
-#     which.rows.per.id <- mapply(seq, min.id.match, max.id.match)
     
     boots <- matrix(nrow = n.boot, ncol = 14)
     if(include.se) {
@@ -1155,8 +1063,6 @@ sim <- function(sim_num, days_in_study, n.boot = 100, include.se = FALSE) {
     }
 
     # end boot ------------------------------------------
-    # out <- c(days_in_study, sim_num, t1main$surv, t2main$surv, 
-      # t3main$surv, t4main$surv, unname(coef(m1)), mean.boot, se_est)
     out <- c(days_in_study, sim_num, t1main$surv,
       t3main$surv, t4main$surv, unname(coef(m1)), mean.boot, se_est)
 	write.table(t(out), 
@@ -1167,8 +1073,6 @@ sim <- function(sim_num, days_in_study, n.boot = 100, include.se = FALSE) {
       append = TRUE)
 }
 
-# tt <- read.table(outfile, header = TRUE)
-# outfile <- "./outfiles/sim_organ_checking_mine_out.txt"
 cols <- c("days_in_study", "sim_num",
   paste0("allsurv", 1:4 * 180), 
   # paste0("onesurv", 1:4 * 180),
@@ -1187,48 +1091,7 @@ cols <- c("days_in_study", "sim_num",
   c("b0se", "b1se")
 )
 
-# arraynum <- as.numeric(Sys.getenv("PBS_ARRAYID"))
-# if(arraynum == 1) {
-  # write.table(t(cols), 
-    # file = "../outfiles/colnames.txt",
-    # row.names = FALSE, 
-    # col.names = FALSE,
-    # append = FALSE, 
-    # quote = FALSE)
-# }
-
-# outfile <- paste0("../outfiles/sim_out_", arraynum, ".txt")
 outfile <- paste0("./outfiles/sim_out_", j, ".txt")
-# done <- NULL
-# try({
-  # # tt <- read.table("../outfiles/combined_output.txt",
-    # # header = TRUE)
-  # tt <- read.table(outfile,
-    # header = TRUE)
-  # done <- tt$sim_num
-# }, silent = TRUE)
-
-# tt <- try(read.table(outfile))
-# write.table(t(cols), 
-  # outfile, 
-  # row.names = FALSE, 
-  # col.names = FALSE,
-  # append = FALSE, 
-  # quote = FALSE)
-# numsims <- 1000
-# sim.seq <- ((arraynum * numsims / 25) - (numsims / 25 - 1)):(arraynum * numsims / 25)
-# # `%!in%` <- Negate(`%in%`)
-# sims <- setdiff(sim.seq, done)
-# f <- failwith(NULL, sim)
-# for(i in sims) {
-  # # if(i %!in% tt$sim_num)  
-  # out <- f(i, 
-    # days_in_study = 10 * 365, 
-    # n.boot = n.boot, 
-    # include.se = TRUE)
-  # # message(i)
-# }
-
 
 write.table(t(cols), 
   file = outfile, 
@@ -1245,37 +1108,3 @@ out.list <- mclapply(sims,
   mc.cores = n.cores,
   days_in_study = 10* 365,
   include.se = TRUE)
-
-
-# # use this block to run on biostat server.
-# library(parallel)
-# host <- system2("hostname", stdout = TRUE)
-# hosts <- paste0(c("carbon", "cesium", "chromium", 
-#   "potassium", "silicon"), 
-#   ".ccbr.umn.edu")
-# 
-# n.s <- length(hosts)
-# j <- match(host, hosts)
-# outfile <- paste0("../outfiles/sim_out_", j, ".txt")
-# 
-# # if(j == 1) {
-#   # write.table(t(cols), 
-#   # outfile, 
-#   # row.names = FALSE, 
-#   # col.names = FALSE,
-#   # append = FALSE, quote = FALSE)
-# # }
-# 
-# write.table(t(cols), 
-#   outfile, 
-#   row.names = FALSE, 
-#   col.names = FALSE,
-#   append = FALSE, quote = FALSE)
-# 
-# sims <- ((j * n.mc / n.s) - (n.mc / n.s - 1)):(j * n.mc / n.s)
-# out.list <- mclapply(sims,
-#   failwith(NULL, sim),
-#   mc.cores = n.cores,
-#   days_in_study = 10 * 365,
-#   n.boot = n.boot,
-#   include.se = TRUE)
